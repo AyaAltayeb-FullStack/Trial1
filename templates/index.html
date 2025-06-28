@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Simple OCPP Charger UI</title>
+</head>
+<body>
+  <h2>OCPP Test UI for Charger</h2>
+
+  <button onclick="connect()">🔌 Connect to CSMS</button><br><br>
+
+  <button onclick="sendBootNotification()">🚗 BootNotification</button>
+  <button onclick="sendHeartbeat()">❤️ Heartbeat</button>
+  <button onclick="sendAuthorize()">✅ Authorize</button>
+  <button onclick="sendStartTransaction()">▶️ StartTransaction</button>
+  <button onclick="sendStopTransaction()">⏹ StopTransaction</button>
+
+  <p>📝 Open DevTools (F12) → Console to view messages</p>
+
+  <script>
+    let ws;
+    let transactionId = 123456;
+
+    function connect() {
+      ws = new WebSocket("ws://localhost:9000/CHARGER001");
+
+      ws.onopen = () => {
+        console.log("✅ Connected to CSMS");
+      };
+
+      ws.onmessage = (event) => {
+        console.log("📨 From CSMS:", event.data);
+
+        try {
+          const msg = JSON.parse(event.data);
+
+          // ✅ Handle RemoteStartTransaction request from CSMS
+          if (Array.isArray(msg) && msg[0] === 2 && msg[2] === "RemoteStartTransaction") {
+            const requestId = msg[1];
+            const payload = msg[3];
+
+            console.log("⚡ RemoteStartTransaction received:", payload);
+
+            const response = [
+              3,
+              requestId,
+              { status: "Accepted" }
+            ];
+
+            ws.send(JSON.stringify(response));
+            console.log("✅ Responded with Accepted");
+          }
+
+          // 📌 Save transactionId from StartTransaction response
+          if (Array.isArray(msg) && msg[0] === 3 && typeof msg[2]?.transactionId !== "undefined") {
+            transactionId = msg[2].transactionId;
+            console.log("📌 Saved transactionId:", transactionId);
+          }
+
+        } catch (e) {
+          console.error("❌ Failed to parse or handle CSMS message:", e);
+        }
+      };
+    }
+
+    function sendBootNotification() {
+      const message = [
+        2,
+        "boot1",
+        "BootNotification",
+        {
+          chargePointModel: "TestModel",
+          chargePointVendor: "TestVendor"
+        }
+      ];
+      ws.send(JSON.stringify(message));
+      console.log("🚗 BootNotification sent");
+    }
+
+    function sendHeartbeat() {
+      ws.send(JSON.stringify([
+        2,
+        "hb1",
+        "Heartbeat",
+        {}
+      ]));
+      console.log("❤️ Heartbeat sent");
+    }
+
+    function sendAuthorize() {
+      ws.send(JSON.stringify([
+        2,
+        "auth1",
+        "Authorize",
+        { idTag: "valid123" }
+      ]));
+      console.log("✅ Authorize sent");
+    }
+
+    function sendStartTransaction() {
+      const message = [
+        2,
+        "start1",
+        "StartTransaction",
+        {
+          connectorId: 1,
+          idTag: "valid123",
+          meterStart: 0,
+          timestamp: new Date().toISOString()
+        }
+      ];
+      ws.send(JSON.stringify(message));
+      console.log("▶️ StartTransaction sent");
+    }
+
+    function sendStopTransaction() {
+      const message = [
+        2,
+        "stop1",
+        "StopTransaction",
+        {
+          transactionId: transactionId,
+          meterStop: 100,
+          timestamp: new Date().toISOString()
+        }
+      ];
+      ws.send(JSON.stringify(message));
+      console.log("⏹ StopTransaction sent");
+    }
+  </script>
+</body>
+</html>
