@@ -1,0 +1,4 @@
+fastapi
+uvicorn
+websockets
+ocpp==0.10.1
